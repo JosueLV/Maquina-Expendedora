@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Máquina Expendedora · Autómata de Estados</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=VT323&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --cabinet-dark:#171f2a;
+  --cabinet-mid:#222e3d;
+  --cabinet-light:#324154;
+  --steel-line:rgba(255,255,255,.08);
+  --amber:#ffb020;
+  --amber-deep:#c9821a;
+  --red:#e0473f;
+  --green:#39ff88;
+  --green-deep:#1aa854;
+  --lcd-bg:#06140d;
+  --paper:#f3efe6;
+  --paper-line:#d8d0bd;
+  --ink:#181c20;
+  --ink-soft:#5b6168;
+  --font-display:'Oswald',sans-serif;
+  --font-mono:'VT323',monospace;
+  --font-body:'Inter',sans-serif;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:radial-gradient(circle at 50% -10%, #2a3849 0%, #10151c 55%, #0a0d12 100%);
+  font-family:var(--font-body);
+  color:var(--ink);
+  padding:28px 16px 60px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001ms !important; transition-duration:.001ms !important;}
+}
+
+.machine-wrap{ width:100%; max-width:1080px; }
+
+/* ---------- Brand header ---------- */
+.brand{ text-align:center; margin-bottom:22px; color:#dfe6ee; }
+.brand-eyebrow{
+  font-family:var(--font-display); letter-spacing:.18em; text-transform:uppercase;
+  font-size:12px; color:var(--amber); display:inline-block; margin-bottom:6px;
+}
+.brand h1{
+  font-family:var(--font-display); font-weight:700; font-size:clamp(26px,4vw,38px);
+  margin:0; letter-spacing:.01em;
+}
+.brand h1 span{ color:var(--amber); font-weight:500; font-size:.55em; display:block; margin-top:4px; letter-spacing:.05em;}
+
+/* ---------- Cabinet ---------- */
+.cabinet{
+  background:linear-gradient(180deg,var(--cabinet-light),var(--cabinet-dark) 40%);
+  border-radius:20px;
+  padding:20px;
+  display:grid;
+  grid-template-columns:1.35fr 1fr;
+  gap:18px;
+  box-shadow:0 30px 60px -20px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+  border:1px solid var(--steel-line);
+}
+@media (max-width:760px){ .cabinet{ grid-template-columns:1fr; } }
+
+/* ---------- Showcase (glass window with products) ---------- */
+.showcase{
+  background:linear-gradient(160deg,#0e1721,#1a2531 60%);
+  border-radius:14px;
+  padding:16px;
+  border:1px solid var(--steel-line);
+  box-shadow:inset 0 0 40px rgba(0,0,0,.55), inset 0 0 0 6px rgba(255,255,255,.02);
+  position:relative;
+}
+.showcase::before{
+  content:"";
+  position:absolute; inset:8px;
+  border-radius:10px;
+  background:linear-gradient(115deg, rgba(255,255,255,.07), transparent 35%);
+  pointer-events:none;
+}
+.showcase-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  position:relative;
+}
+@media (max-width:420px){ .showcase-grid{ grid-template-columns:repeat(2,1fr); } }
+
+.product{
+  background:linear-gradient(180deg,#2b3a4c,#1d2733);
+  border:1px solid var(--steel-line);
+  border-radius:10px;
+  padding:10px 8px 9px;
+  text-align:center;
+  cursor:pointer;
+  color:#e7ecf1;
+  font-family:var(--font-body);
+  transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.product:hover{ transform:translateY(-2px); border-color:var(--amber); }
+.product:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+.product .icon{ font-size:26px; line-height:1; display:block; margin-bottom:4px; }
+.product .name{ font-size:11.5px; font-weight:600; display:block; }
+.product .price{
+  font-family:var(--font-mono); font-size:16px; color:var(--amber);
+  display:block; margin-top:2px;
+}
+.product.selected{
+  border-color:var(--amber);
+  box-shadow:0 0 0 2px var(--amber), 0 6px 18px -6px rgba(255,176,32,.5);
+  background:linear-gradient(180deg,#3a4156,#262f3d);
+}
+.product.disabled{ opacity:.4; cursor:not-allowed; }
+.product.disabled:hover{ transform:none; border-color:var(--steel-line); }
+
+/* ---------- Control panel ---------- */
+.control-panel{ display:flex; flex-direction:column; gap:12px; }
+
+.lcd{
+  background:radial-gradient(circle at 30% 0%, #0c2417 0%, var(--lcd-bg) 70%);
+  border:1px solid #0c2117;
+  border-radius:10px;
+  padding:12px 14px;
+  font-family:var(--font-mono);
+  color:var(--green);
+  box-shadow:inset 0 0 18px rgba(0,0,0,.7), 0 0 14px rgba(57,255,136,.08);
+}
+.lcd-product{ font-size:22px; letter-spacing:.03em; min-height:26px; text-shadow:0 0 6px rgba(57,255,136,.55); }
+.lcd-row{ display:flex; justify-content:space-between; font-size:19px; opacity:.9; padding-top:2px;}
+.lcd-status{ justify-content:flex-start; margin-top:4px; font-size:18px; color:var(--amber); text-shadow:0 0 6px rgba(255,176,32,.5); min-height:20px;}
+
+.coin-tray{
+  min-height:38px;
+  display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+  background:rgba(0,0,0,.18);
+  border:1px dashed var(--steel-line);
+  border-radius:8px;
+  padding:6px 8px;
+}
+.coin-tray:empty::before{ content:"Bandeja vacía"; color:#8995a3; font-size:12px; font-family:var(--font-body); }
+.coin-chip{
+  font-family:var(--font-mono); font-size:14px;
+  background:radial-gradient(circle at 30% 30%, #ffe19a, var(--amber-deep));
+  color:#3a2400; border-radius:999px; padding:3px 10px;
+  box-shadow:0 1px 3px rgba(0,0,0,.4);
+  animation:dropIn .25s ease;
+}
+.coin-chip.bill{ background:radial-gradient(circle at 30% 30%, #b6e8c9, var(--green-deep)); color:#06210f; border-radius:5px; }
+@keyframes dropIn{ from{ transform:translateY(-14px) scale(.8); opacity:0;} to{ transform:none; opacity:1; } }
+
+.keypad-label{
+  font-family:var(--font-display); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+  color:#9aa6b3; display:block; margin-bottom:6px;
+}
+.keypad-buttons{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.coin-btn{
+  font-family:var(--font-display); font-weight:600; font-size:15px;
+  background:linear-gradient(180deg,#4a5a70,#2e3a4a);
+  color:#eef3f8; border:1px solid var(--steel-line); border-radius:8px;
+  padding:10px 4px; cursor:pointer; transition:transform .08s ease, background .15s ease;
+}
+.coin-btn:hover{ background:linear-gradient(180deg,#5a6c84,#39485b); }
+.coin-btn:active{ transform:scale(.95); }
+.coin-btn:disabled{ opacity:.35; cursor:not-allowed; }
+.coin-btn:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+.btn-cancel{
+  font-family:var(--font-display); font-weight:600; letter-spacing:.04em;
+  background:linear-gradient(180deg,#e0473f,#a8261f);
+  color:#fff; border:none; border-radius:8px; padding:11px;
+  cursor:pointer; font-size:13.5px; text-transform:uppercase;
+  transition:filter .15s ease;
+}
+.btn-cancel:hover{ filter:brightness(1.1); }
+.btn-cancel:disabled{ opacity:.35; cursor:not-allowed; }
+.btn-cancel:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+
+/* ---------- FSM panel ---------- */
+.fsm-panel{
+  background:var(--paper);
+  border-radius:16px;
+  margin-top:22px;
+  padding:20px 22px 24px;
+  border:1px solid var(--paper-line);
+}
+.fsm-head h2{
+  font-family:var(--font-display); font-size:19px; margin:0 0 4px; color:var(--ink);
+}
+.fsm-head p{ margin:0 0 14px; font-size:13.5px; color:var(--ink-soft); max-width:760px; line-height:1.5;}
+.fsm-canvas{
+  overflow-x:auto; overflow-y:hidden;
+  padding:10px 4px;
+}
+.fsm-svg{ display:block; }
+.fsm-svg .node-circle{
+  fill:#fff; stroke:#93a0ab; stroke-width:2;
+  transition:fill .25s ease, stroke .25s ease, r .25s ease;
+}
+.fsm-svg .fsm-node.active .node-circle{
+  fill:var(--amber); stroke:var(--amber-deep);
+}
+.fsm-svg .fsm-node.accept .node-circle.outer{ fill:#eafff1; stroke:#1f7a47; stroke-width:3; }
+.fsm-svg .fsm-node.accept .node-circle.inner{ fill:none; stroke:#1f7a47; stroke-width:1.5; }
+.fsm-svg .fsm-node.accept.active .node-circle.outer{ fill:var(--green); stroke:var(--green-deep); }
+.fsm-svg .fsm-node.accept.active .node-circle.inner{ stroke:var(--green-deep); }
+.fsm-svg .node-text{
+  font-family:var(--font-mono); font-size:15px; fill:var(--ink); text-anchor:middle;
+}
+.fsm-svg .fsm-node.active .node-text{ fill:#3a2400; }
+.fsm-svg .fsm-node.accept .node-text.accept-text{ font-size:13px; fill:#0d4d2a; }
+.fsm-svg .fsm-node.accept.active .node-text.accept-text{ fill:#06210f; }
+.fsm-svg .node-subtext{
+  font-family:var(--font-body); font-size:8px; fill:var(--ink-soft); text-anchor:middle; letter-spacing:.03em;
+}
+.fsm-svg .fsm-node.accept .node-subtext.accept-sub{ fill:#1f7a47; font-weight:600; }
+.fsm-svg .fsm-node.accept.active .node-subtext.accept-sub{ fill:#06210f; }
+.fsm-svg .fsm-edge{ transition:opacity .2s ease, stroke-width .2s ease; }
+.fsm-svg .fsm-edge.edge-flash{ stroke-width:4.5; opacity:1 !important; animation:edgeFlash .9s ease; }
+@keyframes edgeFlash{
+  0%{ stroke-width:2; }
+  35%{ stroke-width:5; }
+  100%{ stroke-width:2; }
+}
+.fsm-svg .fsm-edge-label{
+  font-family:var(--font-body); font-size:9.5px; font-weight:600; text-anchor:middle;
+}
+.fsm-note{ font-size:12px; color:var(--ink-soft); margin:14px 0 0; line-height:1.5; }
+.fsm-legend{ display:flex; flex-wrap:wrap; gap:10px 16px; margin:12px 2px 0; font-size:11.5px; color:var(--ink-soft); }
+.fsm-legend span{ display:inline-flex; align-items:center; gap:5px; }
+.fsm-legend i{ width:16px; height:3px; border-radius:2px; display:inline-block; }
+
+/* ---------- Result banner ---------- */
+.result-banner{
+  margin-top:10px;
+  border-radius:8px;
+  padding:10px 12px;
+  font-size:13px;
+  display:none;
+  line-height:1.4;
+}
+.result-banner.show{ display:block; animation:dropIn .25s ease; }
+.result-banner.success{ background:#eafff1; border:1px solid #1f7a47; color:#0d4d2a; }
+.result-banner.info{ background:#fff4e0; border:1px solid var(--amber-deep); color:#5c3c00; }
+
+/* ---------- State table ---------- */
+.table-panel{
+  background:var(--paper);
+  border-radius:16px;
+  margin-top:22px;
+  padding:20px 22px 24px;
+  border:1px solid var(--paper-line);
+}
+.table-header{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+.table-header h2{ font-family:var(--font-display); font-size:19px; margin:0; color:var(--ink); }
+.table-controls{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft); }
+.table-controls select{
+  font-family:var(--font-body); font-size:13px;
+  padding:6px 10px; border-radius:7px;
+  border:1px solid var(--paper-line);
+  background:#fff; color:var(--ink); cursor:pointer;
+}
+.state-table-wrap{ overflow-x:auto; }
+.state-table{
+  width:100%; border-collapse:collapse;
+  font-family:var(--font-body); font-size:12.5px;
+  color:var(--ink);
+}
+.state-table th{
+  background:#e8e3d8; font-family:var(--font-display); font-size:13px;
+  font-weight:600; padding:9px 12px; text-align:center;
+  border:1px solid var(--paper-line);
+}
+.state-table th.col-state{ text-align:left; min-width:130px; }
+.state-table td{
+  padding:8px 12px; border:1px solid var(--paper-line);
+  text-align:center; vertical-align:middle;
+}
+.state-table tr:nth-child(even) td{ background:#f9f6f0; }
+.state-table td.td-state{
+  text-align:left; font-family:var(--font-mono); font-size:15px;
+  background:#fff; font-weight:600;
+}
+.state-table td.td-state.is-initial::before{
+  content:"→ "; color:var(--amber-deep); font-family:var(--font-body); font-size:11px;
+}
+.state-table td.td-accept{
+  background:#eafff1; font-family:var(--font-mono); font-size:14px;
+  color:#0d4d2a; font-weight:700; border:2px solid #1f7a47;
+}
+.state-table td.td-next{ font-family:var(--font-mono); font-size:14px; }
+.state-table td.td-next.to-accept{
+  background:#fff4e0; color:var(--amber-deep);
+  font-weight:700;
+}
+.state-table td.td-next.to-accept span{ font-size:11px; display:block; font-family:var(--font-body); font-weight:400; color:#996a00; }
+.table-legend{
+  margin-top:12px; font-size:12px; color:var(--ink-soft); display:flex; flex-wrap:wrap; gap:14px;
+}
+.table-legend span{ display:flex; align-items:center; gap:5px; }
+.leg-box{ width:14px; height:14px; border-radius:3px; display:inline-block; }
+.table-empty{ color:var(--ink-soft); font-size:13px; font-style:italic; }
+
+/* ---------- Log ---------- */
+.log-panel{ margin-top:18px; color:#cfd8e2; }
+.log-panel h2{ font-family:var(--font-display); font-size:16px; margin:0 0 8px; color:#e7ecf1; }
+#logList{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; }
+#logList li{
+  background:rgba(255,255,255,.04); border:1px solid var(--steel-line);
+  border-radius:8px; padding:8px 10px; font-size:12.5px;
+}
+.log-empty{ color:#7c8794; font-style:italic; }
+</style>
+</head>
+<body>
+<div class="machine-wrap">
+
+  <header class="brand">
+    <span class="brand-eyebrow">Discreta · Autómatas finitos</span>
+    <h1>Máquina Expendedora<span>de S/ 0.50 a S/ 5.00 — vuelto incluido</span></h1>
+  </header>
+
+  <div class="cabinet">
+    <section class="showcase" aria-label="Vitrina de productos">
+      <div class="showcase-grid" id="productGrid"></div>
+    </section>
+
+    <section class="control-panel">
+      <div class="lcd" aria-live="polite">
+        <div class="lcd-product" id="lcdProduct">SELECCIONA UN PRODUCTO</div>
+        <div class="lcd-row"><span>PRECIO</span><span id="lcdPrice">S/ 0.00</span></div>
+        <div class="lcd-row"><span>INSERTADO</span><span id="lcdInserted">S/ 0.00</span></div>
+        <div class="lcd-status" id="lcdStatus">— esperando selección —</div>
+      </div>
+
+      <div class="coin-tray" id="coinTray" aria-label="Monedas insertadas"></div>
+
+      <div>
+        <span class="keypad-label">Insertar moneda / billete (S/)</span>
+        <div class="keypad-buttons" id="denomButtons"></div>
+      </div>
+
+      <button class="btn-cancel" id="cancelBtn">Cancelar y devolver</button>
+
+      <div class="result-banner" id="resultBanner"></div>
+    </section>
+  </div>
+
+  <section class="fsm-panel">
+    <div class="fsm-head">
+      <h2>Diagrama de estados del autómata</h2>
+    </div>
+    <div class="fsm-canvas" id="fsmCanvas"></div>
+    <p class="fsm-note" id="fsmNote">Selecciona un producto para generar su cadena de estados (de S/ 0.00 hasta el precio, en pasos de S/ 0.50).</p>
+  </section>
+
+  <section class="table-panel">
+    <div class="table-header">
+      <h2>Tabla de estados por producto</h2>
+      <div class="table-controls">
+        <label for="productSelect">Producto:</label>
+        <select id="productSelect">
+          <option value="">— selecciona —</option>
+        </select>
+      </div>
+    </div>
+    <div id="stateTableWrap"></div>
+  </section>
+
+  <section class="log-panel">
+    <h2>Historial de operaciones</h2>
+    <ul id="logList"><li class="log-empty">Aún no hay compras.</li></ul>
+  </section>
+
+</div>
+
+<script>
+const DENOMS = [0.1, 0.2, 0.5, 1, 2, 5];
+
+const PRODUCTS = [
+  { id:'caramelo',  name:'Caramelo',          icon:'🍬', price:0.5 },
+  { id:'galleta',   name:'Galletas',          icon:'🍪', price:1.0 },
+  { id:'menta',     name:'Mentitas',          icon:'🍭', price:1.1 },
+  { id:'chicle',    name:'Chicles',           icon:'🫧', price:1.3 },
+  { id:'gomitas',   name:'Gomitas',           icon:'🐻', price:1.6 },
+  { id:'agua',      name:'Agua',              icon:'💧', price:1.5 },
+  { id:'papas',     name:'Papas fritas',      icon:'🍟', price:1.5 },
+  { id:'gaseosa',   name:'Gaseosa',           icon:'🥤', price:2.0 },
+  { id:'refresco',  name:'Refresco chico',    icon:'🧃', price:2.1 },
+  { id:'proteina',  name:'Barra proteica',    icon:'🍫', price:2.4 },
+  { id:'chocolate', name:'Chocolate',         icon:'🍫', price:2.5 },
+  { id:'jugo',      name:'Jugo',              icon:'🧃', price:2.5 },
+  { id:'cafe',      name:'Café',              icon:'☕', price:3.0 },
+  { id:'tehelado',  name:'Té helado',         icon:'🧊', price:3.1 },
+  { id:'snackmix',  name:'Snack mixto',       icon:'🥜', price:3.6 },
+  { id:'yogurt',    name:'Yogurt',            icon:'🥛', price:3.5 },
+  { id:'pan',       name:'Pan',               icon:'🥐', price:4.0 },
+  { id:'sandwich',  name:'Sándwich',          icon:'🥪', price:4.5 },
+  { id:'energ',     name:'Energizante',       icon:'⚡', price:5.0 },
+];
+
+// ----- internal state (amounts handled in "half-soles" integer units to avoid float errors) -----
+let selected = null;      // product object
+let insertedHalf = 0;     // total inserted, in half-units
+let stateIndex = 0;       // current intermediate state index (0..h-1)
+let insertedCoins = [];   // denominations inserted this transaction
+let dispensing = false;   // true while a result is being shown / locked
+
+const toHalf = (soles) => Math.round(soles * 10);
+const toSoles = (half) => half / 10;
+const fmt = (soles) => 'S/ ' + soles.toFixed(2);
+
+// ---------- render product grid ----------
+const productGrid = document.getElementById('productGrid');
+function renderProducts(){
+  productGrid.innerHTML = '';
+  PRODUCTS.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'product' + (selected && selected.id === p.id ? ' selected' : '') + (dispensing ? ' disabled' : '');
+    div.tabIndex = 0;
+    div.setAttribute('role','button');
+    div.setAttribute('aria-pressed', selected && selected.id === p.id ? 'true' : 'false');
+    div.innerHTML = `<span class="icon">${p.icon}</span><span class="name">${p.name}</span><span class="price">${fmt(p.price)}</span>`;
+    div.addEventListener('click', () => selectProduct(p));
+    div.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectProduct(p); } });
+    productGrid.appendChild(div);
+  });
+}
+
+// ---------- render denom buttons ----------
+const denomButtons = document.getElementById('denomButtons');
+function renderDenoms(){
+  denomButtons.innerHTML = '';
+  DENOMS.forEach(d => {
+    const btn = document.createElement('button');
+    btn.className = 'coin-btn';
+    btn.textContent = 'S/ ' + (d % 1 === 0 ? d.toFixed(0) : d.toFixed(2).replace(/0+$/, '').replace(/\.$/, ''));
+    btn.disabled = dispensing;
+    btn.addEventListener('click', () => insertCoin(d));
+    denomButtons.appendChild(btn);
+  });
+}
+
+const cancelBtn = document.getElementById('cancelBtn');
+cancelBtn.addEventListener('click', cancelTransaction);
+
+// ---------- LCD ----------
+const lcdProduct = document.getElementById('lcdProduct');
+const lcdPrice = document.getElementById('lcdPrice');
+const lcdInserted = document.getElementById('lcdInserted');
+const lcdStatus = document.getElementById('lcdStatus');
+
+function renderLcd(){
+  lcdProduct.textContent = selected ? selected.name.toUpperCase() : (insertedHalf > 0 ? 'ELIGE UN PRODUCTO' : 'INSERTA MONEDA O ELIGE PRODUCTO');
+  lcdPrice.textContent = selected ? fmt(selected.price) : 'S/ 0.00';
+  lcdInserted.textContent = fmt(toSoles(insertedHalf));
+  if(dispensing){
+    lcdStatus.textContent = lcdStatus.dataset.locked || '...';
+  } else if(!selected && insertedHalf > 0){
+    lcdStatus.textContent = 'MONEDAS LISTAS — ELIGE PRODUCTO';
+  } else if(!selected){
+    lcdStatus.textContent = '— esperando —';
+  } else {
+    const faltante = selected.price - toSoles(insertedHalf);
+    lcdStatus.textContent = faltante > 0 ? 'FALTAN ' + fmt(faltante) : '— listo —';
+  }
+}
+
+// ---------- coin tray ----------
+const coinTray = document.getElementById('coinTray');
+function renderCoinTray(){
+  coinTray.innerHTML = '';
+  insertedCoins.forEach(d => {
+    const chip = document.createElement('span');
+    chip.className = 'coin-chip' + (d >= 5 ? ' bill' : '');
+    chip.textContent = 'S/ ' + (d % 1 === 0 ? d.toFixed(0) : d.toFixed(1));
+    coinTray.appendChild(chip);
+  });
+}
+
+// ---------- result banner ----------
+const resultBanner = document.getElementById('resultBanner');
+function showBanner(html, type){
+  resultBanner.className = 'result-banner show ' + type;
+  resultBanner.innerHTML = html;
+}
+function hideBanner(){
+  resultBanner.className = 'result-banner';
+  resultBanner.innerHTML = '';
+}
+
+// ---------- log ----------
+const logList = document.getElementById('logList');
+function addLog(text){
+  if(logList.querySelector('.log-empty')) logList.innerHTML = '';
+  const li = document.createElement('li');
+  li.textContent = text;
+  logList.prepend(li);
+}
+
+// ---------- change breakdown (greedy, in half-units) ----------
+function breakdownChange(half){
+  const denomsHalf = [50,40,30,20,10,5,2,1];
+  let remaining = half;
+  const parts = [];
+  denomsHalf.forEach(dh => {
+    const count = Math.floor(remaining / dh);
+    if(count > 0){ parts.push({ denom: toSoles(dh), count }); remaining -= count * dh; }
+  });
+  return parts;
+}
+function describeParts(parts){
+  if(parts.length === 0) return 'sin vuelto';
+  return parts.map(p => `${p.count} × ${fmt(p.denom)}`).join(' + ');
+}
+
+// ---------- FSM diagram (autómata COMPLETO del producto seleccionado, al estilo del diagrama de referencia) ----------
+const fsmCanvas = document.getElementById('fsmCanvas');
+const fsmNote = document.getElementById('fsmNote');
+
+const DENOM_COLORS = { 0.1:'#4f8fdb', 0.2:'#2e9e6b', 0.5:'#c9821a', 1:'#e0473f', 2:'#7a56d6', 5:'#c2469a' };
+function denomColor(d){ return DENOM_COLORS[d] || '#5b6168'; }
+function fmtDenom(d){ return 'S/' + (d % 1 === 0 ? d.toFixed(0) : d.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')); }
+
+// Calcula a qué estado lleva una moneda "d" (en unidades de 0.1) desde el estado "s".
+function transitionTarget(s, priceH, dH, isAccept){
+  const base = isAccept ? 0 : s;
+  const nextH = base + dH;
+  if(nextH >= priceH) return { accept:true, changeHalf: nextH - priceH };
+  return { accept:false, index: nextH };
+}
+
+let fsmFrozenProduct = null; // producto de la última transacción completada: mantiene el autómata visible hasta elegir otro producto o cancelar
+let fsmPath = [];            // secuencia completa de transiciones recorridas en la transacción actual: [{from, denom}, ...]
+
+function resetFsmTrace(){
+  fsmFrozenProduct = null;
+  fsmPath = [];
+}
+
+// Dibuja el autómata COMPLETO del producto: un círculo por cada monto posible (0 al precio, en pasos de S/0.10)
+// y, desde cada uno, una flecha de cada una de las 6 monedas hacia el estado que le corresponde (igual que en el
+// diagrama de referencia, donde cada estado tiene una flecha "peseta" y una "medio dólar"; aquí hay 6 monedas,
+// así que cada estado tiene hasta 6 flechas salientes en vez de 2).
+function renderFsm(){
+  const fsmProduct = selected || fsmFrozenProduct;
+  if(!fsmProduct){
+    fsmCanvas.innerHTML = '';
+    fsmNote.textContent = 'Selecciona un producto: aparecerá su autómata completo, con un estado por cada monto posible (de S/0.00 al precio) y una flecha de cada color por cada una de las 6 monedas/billetes.';
+    return;
+  }
+  const priceH = toHalf(fsmProduct.price);
+  const states = []; // estados no aceptables: 0 .. priceH-1
+  for(let i = 0; i < priceH; i++) states.push(i);
+  const acceptSlot = states.length;
+  const totalSlots = states.length + 1;
+
+  // tamaño adaptable: los productos más caros generan muchos más estados que los baratos
+  const dense = states.length > 18;
+  const spacingX = dense ? 78 : (states.length > 9 ? 100 : 130);
+  const nodeR = dense ? 20 : (states.length > 9 ? 25 : 30);
+  const acceptR = nodeR + 10;
+  const baselineY = 250, riseY = dense ? 70 : 92; // los nodos en posición impar se elevan, como en el diagrama de referencia
+  const leftPad = 60, rightPad = 90;
+  const width = Math.max(leftPad + rightPad + (totalSlots - 1) * spacingX, 260);
+  const height = 360;
+  const posOf = (slot) => ({ x: leftPad + slot * spacingX, y: baselineY - (slot % 2 === 1 ? riseY : 0) });
+
+  let defs = '<defs>';
+  DENOMS.forEach((d, dIdx) => {
+    defs += `<marker id="arrow-${dIdx}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${denomColor(d)}"/></marker>`;
+  });
+  defs += '</defs>';
+
+  // flecha no etiquetada hacia el estado inicial
+  const p0 = posOf(0);
+  let edgeHTML = `<line x1="${p0.x-nodeR-30}" y1="${p0.y}" x2="${p0.x-nodeR-4}" y2="${p0.y}" stroke="#93a0ab" stroke-width="2" marker-end="url(#arrow-init2)"/>`;
+  defs = defs.replace('</defs>', `<marker id="arrow-init2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#93a0ab"/></marker></defs>`);
+
+  let labelHTML = '';
+  let dimEdgeHTML = '';
+  let pathEdgeHTML = '';
+  let lastEdgeHTML = '';
+  const lastPathIdx = fsmPath.length - 1;
+
+  // construye TODAS las aristas del autómata: por cada estado, una por cada una de las 6 monedas
+  states.forEach((s) => {
+    DENOMS.forEach((d, dIdx) => {
+      const dH = toHalf(d);
+      const t = transitionTarget(s, priceH, dH, false);
+      const toSlot = t.accept ? acceptSlot : t.index;
+      const a = posOf(s), b = posOf(toSlot);
+      const rFrom = nodeR, rTo = t.accept ? acceptR : nodeR;
+      const color = denomColor(d);
+      const pathIdx = fsmPath.findIndex(tr => tr.from === s && tr.denom === d);
+      const onPath = pathIdx !== -1;
+      const isLast = onPath && pathIdx === lastPathIdx;
+
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const ux = dx / dist, uy = dy / dist;
+      const x1 = a.x + ux * rFrom, y1 = a.y + uy * rFrom;
+      const x2 = b.x - ux * rTo, y2 = b.y - uy * rTo;
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      const distSlots = Math.max(1, Math.abs(toSlot - s));
+      const curve = Math.min(18 + distSlots * 9, 170) + dIdx * 7; // más lejos → arco más alto; separa las 6 monedas entre sí
+      const nx = -uy, ny = ux; // normal
+      const cx = mx + nx * curve, cy = my + ny * curve - 10;
+
+      const strokeWidth = isLast ? 2.6 : (onPath ? 2.1 : 1.3);
+      const opacity = isLast ? 0.95 : (onPath ? 0.8 : 0.16);
+      const flashClass = isLast ? ' edge-flash' : (onPath ? ' edge-path' : '');
+      const path = `<path class="fsm-edge${flashClass}" d="M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${strokeWidth}" marker-end="url(#arrow-${dIdx})" opacity="${opacity}"/>`;
+      if(isLast){
+        lastEdgeHTML += path;
+        const chg = t.accept && t.changeHalf > 0 ? ` · vuelto ${fmt(toSoles(t.changeHalf))}` : '';
+        labelHTML += `<text x="${cx}" y="${cy-6}" class="fsm-edge-label" fill="${color}">${fmtDenom(d)}${chg}</text>`;
+      } else if(onPath){
+        pathEdgeHTML += path;
+      } else {
+        dimEdgeHTML += path;
+      }
+    });
+  });
+  // orden de dibujo: tenues abajo, camino recorrido en medio, la última transición siempre visible encima
+  const edgeAllHTML = edgeHTML + dimEdgeHTML + pathEdgeHTML + lastEdgeHTML;
+
+  // estados por los que ya pasó el camino recorrido en esta transacción (para resaltar sus círculos)
+  const pathVisitedStates = new Set([0]);
+  fsmPath.forEach(tr => {
+    const t = transitionTarget(tr.from, priceH, toHalf(tr.denom), false);
+    if(!t.accept) pathVisitedStates.add(t.index);
+  });
+
+  let nodeHTML = '';
+  states.forEach((s) => {
+    const { x, y } = posOf(s);
+    const isActive = (!!selected && !dispensing && s === stateIndex);
+    const isVisited = !isActive && pathVisitedStates.has(s);
+    const visitedStyle = isVisited ? ' style="fill:#fff3d9;stroke:var(--amber-deep);stroke-width:2.4"' : '';
+    nodeHTML += `<g class="fsm-node${isActive ? ' active' : ''}">
+      <circle cx="${x}" cy="${y}" r="${nodeR}" class="node-circle"${visitedStyle}/>
+      <text x="${x}" y="${y-3}" class="node-text" style="font-size:${dense ? '11px' : '15px'}">${toSoles(s).toFixed(2)}</text>
+      ${dense ? '' : `<text x="${x}" y="${y+12}" class="node-subtext">depositado</text>`}
+    </g>`;
+  });
+  {
+    const { x, y } = posOf(acceptSlot);
+    const isActive = dispensing;
+    nodeHTML += `<g class="fsm-node accept${isActive ? ' active' : ''}">
+      <circle cx="${x}" cy="${y}" r="${acceptR}" class="node-circle outer"/>
+      <circle cx="${x}" cy="${y}" r="${acceptR-6}" class="node-circle inner"/>
+      <text x="${x}" y="${y-6}" class="node-text accept-text">${fmt(fsmProduct.price)}</text>
+      <text x="${x}" y="${y+8}" class="node-subtext accept-sub">o más</text>
+      <text x="${x}" y="${y+20}" class="node-subtext accept-sub">¡producto!</text>
+    </g>`;
+  }
+
+  // ---- flecha de "vuelto": si la última moneda insertada disparó la entrega con cambio,
+  // se dibuja una flecha punteada que regresa desde el estado de aceptación hasta el estado
+  // equivalente al monto del vuelto entregado (si ese monto cae dentro del rango de estados). ----
+  let changeReturnHTML = '';
+  if(lastPathIdx >= 0){
+    const lastTr = fsmPath[lastPathIdx];
+    const lastT = transitionTarget(lastTr.from, priceH, toHalf(lastTr.denom), false);
+    if(lastT.accept && lastT.changeHalf > 0 && lastT.changeHalf < priceH){
+      const acceptPos = posOf(acceptSlot);
+      const targetPos = posOf(lastT.changeHalf);
+      const dx = targetPos.x - acceptPos.x, dy = targetPos.y - acceptPos.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const ux = dx / dist, uy = dy / dist;
+      const x1 = acceptPos.x + ux * acceptR, y1 = acceptPos.y + uy * acceptR;
+      const x2 = targetPos.x - ux * nodeR, y2 = targetPos.y - uy * nodeR;
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      const nx = -uy, ny = ux;
+      const curve = 46;
+      const cx = mx + nx * curve, cy = my + ny * curve + 46;
+      defs = defs.replace('</defs>', `<marker id="arrow-return" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e0473f"/></marker></defs>`);
+      changeReturnHTML = `<path class="fsm-edge fsm-return-edge edge-flash" d="M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}" fill="none" stroke="#e0473f" stroke-width="2.4" stroke-dasharray="6 4" marker-end="url(#arrow-return)" opacity="0.95"/>
+        <text x="${cx}" y="${cy+14}" class="fsm-edge-label" fill="#e0473f">vuelto ${fmt(toSoles(lastT.changeHalf))}</text>`;
+    }
+  }
+
+  const legendHTML = `<div class="fsm-legend">${DENOMS.map(d => `<span><i style="background:${denomColor(d)}"></i>${fmtDenom(d)}</span>`).join('')}${changeReturnHTML ? '<span><i style="background:transparent;border-top:2px dashed #e0473f;height:0"></i>Vuelto (regreso al estado)</span>' : ''}</div>`;
+
+  fsmCanvas.innerHTML = `<svg class="fsm-svg" viewBox="0 0 ${width} ${height}" style="min-width:${width}px" xmlns="http://www.w3.org/2000/svg">${defs}${edgeAllHTML}${nodeHTML}${labelHTML}${changeReturnHTML}</svg>${legendHTML}`;
+
+  if(dispensing){
+    const noteChange = changeReturnHTML ? ' La flecha punteada roja muestra el regreso desde el estado de aceptación hasta el estado equivalente al vuelto entregado.' : '';
+    fsmNote.innerHTML = `¡Estado de aceptación alcanzado! El doble círculo entrega <strong>${fsmProduct.name}</strong>.${noteChange}`;
+  } else if(fsmFrozenProduct && !selected){
+    fsmNote.innerHTML = `Compra completada. El autómata de <strong>${fsmFrozenProduct.name}</strong> queda visible así hasta que elijas otro producto o canceles.`;
+  } else if(insertedHalf === 0){
+    fsmNote.innerHTML = `Autómata completo de <strong>${fsmProduct.name}</strong> (precio ${fmt(fsmProduct.price)}): un estado por cada monto posible y una flecha de cada color por cada una de las 6 monedas. Inserta una moneda para resaltar la transición recorrida.`;
+  } else {
+    fsmNote.innerHTML = `Vas en <strong>${fmt(toSoles(stateIndex))}</strong> depositado (estado resaltado). El camino recorrido con tus monedas queda marcado en color sobre el autómata; la última moneda insertada se ve más intensa y con su etiqueta. El resto de transiciones posibles se ven atenuadas.`;
+  }
+}
+
+// ---------- actions ----------
+function selectProduct(p){
+  if(dispensing) return;
+  if(selected && selected.id === p.id) return;
+  if(selected && selected.id !== p.id && insertedHalf > 0){
+    showBanner('Cancela la transacción actual antes de elegir otro producto.', 'info');
+    return;
+  }
+  selected = p;
+  // keep insertedHalf and insertedCoins if coins were already inserted
+  stateIndex = Math.min(insertedHalf, toHalf(p.price));
+  resetFsmTrace();
+  if(insertedCoins.length){
+    // reconstruye el camino completo recorrido con las monedas ya insertadas antes de elegir el producto
+    const priceH = toHalf(p.price);
+    let cur = 0;
+    for(const d of insertedCoins){
+      fsmPath.push({ from: cur, denom: d });
+      const t = transitionTarget(cur, priceH, toHalf(d), false);
+      if(t.accept) break;
+      cur = t.index;
+    }
+  }
+  hideBanner();
+  renderAll();
+  // if coins already cover the price, dispense immediately
+  if(insertedHalf >= toHalf(p.price)){
+    triggerDispense();
+  }
+}
+
+function triggerDispense(){
+  dispensing = true;
+  const h = toHalf(selected.price);
+  const changeHalf = insertedHalf - h;
+  const parts = breakdownChange(changeHalf);
+  const changeSoles = toSoles(changeHalf);
+  lcdStatus.dataset.locked = changeHalf > 0 ? 'ENTREGANDO + VUELTO' : 'ENTREGANDO PRODUCTO';
+  renderAll();
+  setTimeout(() => {
+    if(changeHalf > 0){
+      showBanner(`✅ <strong>${selected.name}</strong> entregado. Pagaste ${fmt(toSoles(insertedHalf))}, el precio era ${fmt(selected.price)} → vuelto: <strong>${fmt(changeSoles)}</strong> (${describeParts(parts)}).`, 'success');
+      addLog(`Compra: ${selected.name} (${fmt(selected.price)}) · Pagado ${fmt(toSoles(insertedHalf))} · Vuelto ${fmt(changeSoles)}`);
+    } else {
+      showBanner(`✅ <strong>${selected.name}</strong> entregado. Pago exacto de ${fmt(selected.price)}, sin vuelto.`, 'success');
+      addLog(`Compra: ${selected.name} (${fmt(selected.price)}) · Pago exacto · Sin vuelto`);
+    }
+  }, 520);
+  setTimeout(() => {
+    dispensing = false;
+    fsmFrozenProduct = selected; // conserva el grafo visible hasta elegir otro producto o cancelar
+    selected = null; insertedHalf = 0; stateIndex = 0; insertedCoins = [];
+    renderAll();
+  }, 3200);
+}
+
+function insertCoin(d){
+  if(dispensing) return;
+  hideBanner();
+  const steps = toHalf(d);
+  insertedCoins.push(d);
+  insertedHalf += steps;
+
+  if(!selected){
+    // no product yet — just accumulate and update display
+    renderAll();
+    return;
+  }
+
+  const priceH = toHalf(selected.price);
+  fsmPath.push({ from: stateIndex, denom: d }); // se añade al camino recorrido en el autómata completo
+
+  if(insertedHalf >= priceH){
+    triggerDispense();
+  } else {
+    stateIndex = insertedHalf;
+    renderAll();
+  }
+}
+
+function cancelTransaction(){
+  if(dispensing) return;
+  if(insertedHalf === 0){
+    selected = null; insertedHalf = 0; stateIndex = 0; insertedCoins = [];
+    resetFsmTrace();
+    hideBanner();
+    renderAll();
+    return;
+  }
+  const parts = breakdownChange(insertedHalf);
+  const label = selected ? selected.name : 'sin producto';
+  showBanner(`Transacción cancelada. Se devuelve ${fmt(toSoles(insertedHalf))} (${describeParts(parts)}).`, 'info');
+  addLog(`Cancelado · ${label} · Devuelto ${fmt(toSoles(insertedHalf))}`);
+  selected = null; insertedHalf = 0; stateIndex = 0; insertedCoins = [];
+  resetFsmTrace();
+  renderAll();
+}
+
+
+// ---------- State table ----------
+const productSelect = document.getElementById('productSelect');
+const stateTableWrap = document.getElementById('stateTableWrap');
+
+// Populate dropdown
+PRODUCTS.forEach(p => {
+  const opt = document.createElement('option');
+  opt.value = p.id;
+  opt.textContent = p.icon + ' ' + p.name + '  (' + fmt(p.price) + ')';
+  productSelect.appendChild(opt);
+});
+
+function renderStateTable(productId){
+  stateTableWrap.innerHTML = '';
+  if(!productId){ stateTableWrap.innerHTML = '<p class="table-empty">Selecciona un producto para ver su tabla de estados.</p>'; return; }
+  const p = PRODUCTS.find(x => x.id === productId);
+  if(!p) return;
+
+  const priceH = toHalf(p.price);
+  // states: 0, 1, 2, ... priceH-1 (intermediate) + priceH (accept)
+  const states = [];
+  for(let i = 0; i <= priceH; i++) states.push(i);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'state-table-wrap';
+
+  const table = document.createElement('table');
+  table.className = 'state-table';
+
+  // Header
+  const thead = document.createElement('thead');
+  let thRow = `<tr><th class="col-state">Estado actual</th>`;
+  DENOMS.forEach(d => {
+    const label = d % 1 === 0 ? d.toFixed(0) : d.toFixed(2).replace(/0+$/,'').replace(/\.$/,'');
+    thRow += `<th>S/${label}</th>`;
+  });
+  thRow += `<th>Salida</th></tr>`;
+  thead.innerHTML = thRow;
+  table.appendChild(thead);
+
+  // Body
+  const tbody = document.createElement('tbody');
+  states.forEach(s => {
+    const isAccept = s >= priceH;
+    const stateSoles = toSoles(s);
+    const tr = document.createElement('tr');
+
+    // State cell
+    let stateLabel = isAccept ? fmt(p.price) + ' o más ⊙' : fmt(stateSoles);
+    let stateClass = 'td-state' + (s === 0 ? ' is-initial' : '') + (isAccept ? ' td-accept' : '');
+    let row = `<td class="${stateClass}">${stateLabel}</td>`;
+
+    // Transition cells (misma lógica que el grafo: transitionTarget)
+    DENOMS.forEach(d => {
+      const dH = toHalf(d);
+      const t = transitionTarget(s, priceH, dH, isAccept);
+      let nextLabel, cellClass = 'td-next';
+      if(t.accept){
+        nextLabel = fmt(p.price) + ' o más ⊙';
+        cellClass += ' to-accept';
+        const chg = t.changeHalf > 0 ? ` · vuelto ${fmt(toSoles(t.changeHalf))}` : '';
+        row += `<td class="${cellClass}">${nextLabel}<span>entrega producto${chg}</span></td>`;
+      } else {
+        nextLabel = fmt(toSoles(t.index));
+        row += `<td class="${cellClass}">${nextLabel}</td>`;
+      }
+    });
+
+    // Output column
+    let output = isAccept ? '🎁 Producto + vuelto' : '—';
+    row += `<td style="font-size:12px;color:${isAccept?'#0d4d2a':'var(--ink-soft)'};font-weight:${isAccept?'700':'400'}">${output}</td>`;
+
+    tr.innerHTML = row;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  stateTableWrap.appendChild(wrap);
+
+  // Legend
+  const legend = document.createElement('div');
+  legend.className = 'table-legend';
+  legend.innerHTML = `
+    <span><span class="leg-box" style="background:#eafff1;border:2px solid #1f7a47"></span> Estado de aceptación (doble círculo ⊙) — entrega producto</span>
+    <span><span class="leg-box" style="background:#fff4e0;border:1px solid #c9821a"></span> Transición que alcanza el precio → entrega</span>
+    <span>→ Estado inicial (S/ 0.00)</span>
+  `;
+  stateTableWrap.appendChild(legend);
+}
+
+productSelect.addEventListener('change', () => renderStateTable(productSelect.value));
+stateTableWrap.innerHTML = '<p class="table-empty">Selecciona un producto para ver su tabla de estados.</p>';
+
+// ---------- master render ----------
+function renderAll(){
+  renderProducts();
+  renderDenoms();
+  renderLcd();
+  renderCoinTray();
+  renderFsm();
+  cancelBtn.disabled = dispensing;
+}
+
+renderAll();
+</script>
+</body>
+</html>
